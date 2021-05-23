@@ -50,6 +50,27 @@ def parse_hashid(s):
     assert -(2**32) <= int(s) <= (2**32-1)
     return s
 
+def filter_graph(infile, hashid, outfile):
+  with open(infile, "r") as inf:
+    objects = json.load(inf)
+
+  graph = []
+  hashids = [hashid]
+  count = 0
+  for hashid in hashids:
+    print(f"Searching for obj #{count}/{len(hashids)}", end='\r')
+    count += 1
+    for obj in objects:
+      if str(obj).find(hashid) != -1:
+        graph.append(obj)
+        for link in obj["links"]:
+          hid = link["id"]
+          if hid not in hashids:
+            hashids.append(link["id"])
+
+  with open(outfile, "w") as out:
+    json.dump(graph, out, indent=2)
+
 def main():
   if len(sys.argv) < 3:
     print(f"Usage {sys.argv[0]} MUBIN-DIR HASHID")
@@ -57,23 +78,15 @@ def main():
 
   mubin_dir  = sys.argv[1]
   mubin_json = mubin_dir+".json"
-  hashids = [parse_hashid(sys.argv[2])]
 
   if not os.path.isfile(mubin_json):
     prepare_json(mubin_dir, mubin_json)
 
-  with open(mubin_json, "r") as inf:
-    objects = json.load(inf)
+  hashid = parse_hashid(sys.argv[2])
+  mubin_hashid_json = f"{mubin_dir}-{hashid}.json"
 
-  for hashid in hashids:
-    for obj in objects:
-      s = str(obj)
-      if s.find(hashid) != -1:
-        print(s)
-        for link in obj["links"]:
-          hid = link["id"]
-          if hid not in hashids:
-            hashids.append(link["id"])
+  if not os.path.isfile(mubin_hashid_json):
+    filter_graph(mubin_json, hashid, mubin_hashid_json)
 
 if __name__ == '__main__':
   main()
