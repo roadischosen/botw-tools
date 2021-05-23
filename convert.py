@@ -4,6 +4,9 @@ import json
 import xml.etree.ElementTree as ET
 import struct
 
+def hex_repr(hashid):
+  return "0x" + struct.pack(">i", int(hashid)).hex()
+
 def prepare_json(indir, outfile):
   '''[
     {
@@ -26,12 +29,14 @@ def prepare_json(indir, outfile):
     for obj in root.findall("./Objs/value"):
       hashid = obj.get("HashId")
       if hashid:
+        hashid = hex_repr(hashid)
         name = obj.find("UnitConfigName")
         name = name.text if (name is not None and name.text) else "Unknown"
         entry = {"id": hashid, "name": name, "links": []}
         for link in obj.findall("./LinksToObj/value"):
           hashid = link.get("DestUnitHashId")
           if hashid:
+            hashid = hex_repr(hashid)
             ltype = link.find("DefinitionName")
             entry["links"].append({
               "id": hashid,
@@ -45,10 +50,9 @@ def prepare_json(indir, outfile):
 
 def parse_hashid(s):
   if s.startswith("0x"):
-    return str(struct.unpack(">i", bytes.fromhex(s[2:]))[0])
-  else:
-    assert -(2**32) <= int(s) <= (2**32-1)
     return s
+  elif -(2**32) <= int(s) <= (2**32-1):
+    return hex_repr(s)
 
 def filter_graph(infile, hashid, outfile):
   with open(infile, "r") as inf:
@@ -83,6 +87,10 @@ def main():
     prepare_json(mubin_dir, mubin_json)
 
   hashid = parse_hashid(sys.argv[2])
+  if not hashid:
+    print(f"Invalid HashId {sys.argv[2]}")
+    exit()
+
   mubin_hashid_json = f"{mubin_dir}-{hashid}.json"
 
   if not os.path.isfile(mubin_hashid_json):
