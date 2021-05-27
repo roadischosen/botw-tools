@@ -60,17 +60,22 @@ def filter_graph(infile, hashid, outfile):
 
   graph = []
   hashids = [hashid]
-  count = 0
-  for hashid in hashids:
-    print(f"Searching for obj #{count}/{len(hashids)}", end='\r')
-    count += 1
+  i = 0
+  while i < len(hashids):
+    hashid = hashids[i]
+    i += 1
+    print(f"Searching for obj #{i}/{len(hashids)}", end='\r')
     for obj in objects:
       if str(obj).find(hashid) != -1:
-        graph.append(obj)
+        if obj["id"] not in hashids:
+          hashids.append(obj["id"])
         for link in obj["links"]:
           hid = link["id"]
           if hid not in hashids:
-            hashids.append(link["id"])
+            hashids.append(hid)
+  for obj in objects:
+    if obj["id"] in hashids:
+      graph.append(obj)
 
   with open(outfile, "w") as out:
     json.dump(graph, out, indent=2)
