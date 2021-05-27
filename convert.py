@@ -80,6 +80,22 @@ def filter_graph(infile, hashid, outfile):
   with open(outfile, "w") as out:
     json.dump(graph, out, indent=2)
 
+def to_dot(infile, dotfile):
+  with open(infile, "r") as inf:
+    objects = json.load(inf)
+
+  graph = []
+  for obj in objects:
+    graph.append(f'_{obj["id"]} [shape=record label=\"{{{obj["name"]}|{obj["id"]}}}\"]')
+
+    for link in obj["links"]:
+      graph.append(f'_{obj["id"]} -> _{link["id"]} [label=\"{link["type"]}\"]')
+
+  with open(dotfile, "w") as out:
+    out.write("digraph {\n  ")
+    out.write("\n  ".join(graph))
+    out.write("\n}")
+
 def main():
   if len(sys.argv) < 3:
     print(f"Usage {sys.argv[0]} MUBIN-DIR HASHID")
@@ -100,6 +116,9 @@ def main():
 
   if not os.path.isfile(mubin_hashid_json):
     filter_graph(mubin_json, hashid, mubin_hashid_json)
+
+  dotfile = f"{mubin_dir}-{hashid}.dot"
+  to_dot(mubin_hashid_json, dotfile)
 
 if __name__ == '__main__':
   main()
