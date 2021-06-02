@@ -3,11 +3,12 @@ import sys
 import json
 import xml.etree.ElementTree as ET
 import struct
+import subprocess
 
 def hex_repr(hashid):
   return "0x" + struct.pack(">i", int(hashid)).hex()
 
-def prepare_json(indir, outfile):
+def prepare_json(infiles, outfile):
   '''[
     {
       "id":    <hashid>,
@@ -22,9 +23,8 @@ def prepare_json(indir, outfile):
     ...
   ]'''
   objects = []
-  for filename in os.listdir(indir):
-    # no obvious way to list paths
-    root = ET.parse(os.path.join(indir, filename)).getroot()
+  for path in infiles:
+    root = ET.parse(path).getroot()
 
     for obj in root.findall("./Objs/value"):
       hashid = obj.get("HashId")
@@ -43,7 +43,7 @@ def prepare_json(indir, outfile):
               # bool(ltype) is False, because the Element has no children
               "type": ltype.text if (ltype is not None and ltype.text) else "Unknown"})
         objects.append(entry)
-    print(filename)
+    print(path)
 
   with open(outfile, "w") as out:
     json.dump(objects, out, indent=2)
@@ -98,27 +98,44 @@ def to_dot(infile, dotfile):
 
 def main():
   if len(sys.argv) < 3:
-    print(f"Usage {sys.argv[0]} MUBIN-DIR HASHID")
+    print(f"Usage {sys.argv[0]} MUBIN-DIR|DUNGEON HASHID")
     exit()
 
-  mubin_dir  = sys.argv[1]
-  mubin_json = mubin_dir+".json"
+  source = sys.argv[1]
+  if os.path.isdir(source):
+    files = [os.path.join(source, file) for file in os.listdir(source)]
+  else:
+    if source in ["Fire", "Water", "Electric", "Wind"]:
+      files = [f"mubin_dungeon/Remains{source}_Static.xml", f"mubin_dungeon/Remains{source}_Dynamic.xml"]
+      if source == "Water":
+        files.append("mubin_dungeon/Set_Dungeon_RemainsWater.xml")
+    elif source == "Final":
+      files = ["mubin_dungeon/FinalTrial_Static.xml", "mubin_dungeon/FinalTrial_Dynamic.xml", "mubin_dungeon/Set_DLC_FinalTrial_FirePillar_A.xml", "mubin_dungeon/Set_DLC_FinalTrial_ShutterFence_A.xml", "mubin_dungeon/Set_FinalTrial_DoorBoss.xml", "mubin_dungeon/Set_FinalTrial_Lift.xml", "mubin_dungeon/Set_FinalTrial_OutWall.xml", "mubin_dungeon/Set_FinalTrial_SliderRod.xml"]
+    elif source.isnumeric():
+      files = [f"mubin_dungeon/Dungeon{source}_Static.xml", f"mubin_dungeon/Dungeon{source}_Dynamic.xml"]
+    else:
+      print(f"Invalid dungeon {source}")
+      exit()
+
+  mubin_json = source+".json"
 
   if not os.path.isfile(mubin_json):
-    prepare_json(mubin_dir, mubin_json)
+    prepare_json(source, mubin_json)
 
   hashid = parse_hashid(sys.argv[2])
   if not hashid:
     print(f"Invalid HashId {sys.argv[2]}")
     exit()
 
-  mubin_hashid_json = f"{mubin_dir}-{hashid}.json"
+  mubin_hashid_json = f"{source}-{hashid}.json"
 
   if not os.path.isfile(mubin_hashid_json):
     filter_graph(mubin_json, hashid, mubin_hashid_json)
 
-  dotfile = f"{mubin_dir}-{hashid}.dot"
+  dotfile = f"{source}-{hashid}.dot"
   to_dot(mubin_hashid_json, dotfile)
+
+  subprocess.Popen(["xdot", dotfile]) # disgusting
 
 if __name__ == '__main__':
   main()
