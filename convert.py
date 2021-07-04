@@ -32,16 +32,45 @@ def prepare_json(infiles, outfile):
         hashid = hex_repr(hashid)
         name = obj.find("UnitConfigName")
         name = name.text if (name is not None and name.text) else "Unknown"
-        entry = {"id": hashid, "name": name, "links": []}
+
+        params = obj.find("_Parameters")
+        ext_params = []
+        if params is not None:
+          # unlike params.iter(), this yields only first level tags
+          for param in params:
+            # logging stub
+            for key, value in param.items():
+              if key != "type":
+                print(f"{name}({hashid})'s _Parameter {param.tag} has further attribute: {key}={value}")
+
+            ext_params.append((param.tag, param.text or ""))
+
+          params = params.items()
+        else:
+          params = []
+
+        entry = {"id": hashid, "name": name, "links": [], "params": params+ext_params}
         for link in obj.findall("./LinksToObj/value"):
           hashid = link.get("DestUnitHashId")
           if hashid:
             hashid = hex_repr(hashid)
             ltype = link.find("DefinitionName")
+
+            params = link.find("_Parameters")
+            if params is not None:
+              # logging stub
+              for param in params:
+                print(f"{name}({hashid})'s {ltype.text} link has extended parameter: {param.tag}({param.items()})")
+
+              params = params.items()
+            else:
+              params = []
+
             entry["links"].append({
               "id": hashid,
               # bool(ltype) is False, because the Element has no children
-              "type": ltype.text if (ltype is not None and ltype.text) else "Unknown"})
+              "type": ltype.text if (ltype is not None and ltype.text) else "Unknown",
+              "params": params})
         objects.append(entry)
     print(path)
 
@@ -86,10 +115,13 @@ def to_dot(infile, dotfile):
 
   graph = []
   for obj in objects:
-    graph.append(f'_{obj["id"]} [shape=record label=\"{{{obj["name"]}|{obj["id"]}}}\"]')
+    sep = "\\n"
+    opt_params = f"|{sep.join([str(pair) for pair in obj['params']])}" if obj["params"] else ""
+    graph.append(f'_{obj["id"]} [shape=record label=\"{{{obj["name"]}|{obj["id"]}{opt_params}}}\"]')
 
     for link in obj["links"]:
-      graph.append(f'_{obj["id"]} -> _{link["id"]} [label=\"{link["type"]}\"]')
+      opt_params = f"\n{chr(0x0a).join([str(pair) for pair in link['params']])}" if link["params"] else ""
+      graph.append(f'_{obj["id"]} -> _{link["id"]} [label=\"{link["type"]}{opt_params}\"]')
 
   with open(dotfile, "w") as out:
     out.write("digraph {\n  ")
