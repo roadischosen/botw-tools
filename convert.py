@@ -120,7 +120,7 @@ def main():
   mubin_json = source+".json"
 
   if not os.path.isfile(mubin_json):
-    prepare_json(source, mubin_json)
+    prepare_json(files, mubin_json)
 
   hashid = parse_hashid(sys.argv[2])
   if not hashid:
