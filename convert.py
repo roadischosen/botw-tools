@@ -8,6 +8,17 @@ import subprocess
 def hex_repr(hashid):
   return "0x" + struct.pack(">i", int(hashid)).hex()
 
+def repr_coord_attrs(tag):
+  keys = tag.keys()
+  get = lambda k: tag.get(k, "")
+  if "X" in keys or "Y" in keys or "Z" in keys:
+    for key, value in tag.items():
+      if key not in ["X", "Y", "Z", "type"]:
+        print(f"{tag.tag} has additional attr {key}={value}")
+    return f"{tag.text or ''}({get('X')},{get('Y')},{get('Z')})"
+  else:
+    return None
+
 def prepare_json(infiles, outfile):
   '''[
     {
@@ -38,12 +49,11 @@ def prepare_json(infiles, outfile):
         if params is not None:
           # unlike params.iter(), this yields only first level tags
           for param in params:
-            # logging stub
-            for key, value in param.items():
-              if key != "type":
-                print(f"{name}({hashid})'s _Parameter {param.tag} has further attribute: {key}={value}")
+            # i hope not
+            for subparam in param:
+                print(f"{name}({hashid})'s _Parameter {param.tag} further contains {subparam.tag}({subparam.items()})")
 
-            ext_params.append((param.tag, param.text or ""))
+            ext_params.append((param.tag, repr_coord_attrs(param) or param.text or ""))
 
           params = params.items()
         else:
@@ -57,10 +67,13 @@ def prepare_json(infiles, outfile):
             ltype = link.find("DefinitionName")
 
             params = link.find("_Parameters")
+            ext_params = []
             if params is not None:
-              # logging stub
               for param in params:
-                print(f"{name}({hashid})'s {ltype.text} link has extended parameter: {param.tag}({param.items()})")
+                ext_params.append((param.tag, repr_coord_attrs(param) or param.text or ""))
+                # i hope not
+                for subparam in param:
+                    print(f"{name}({hashid})'s {ltype.text} link's `{param.tag}` further contains {subparam.tag}({subparam.items()})")
 
               params = params.items()
             else:
@@ -70,7 +83,7 @@ def prepare_json(infiles, outfile):
               "id": hashid,
               # bool(ltype) is False, because the Element has no children
               "type": ltype.text if (ltype is not None and ltype.text) else "Unknown",
-              "params": params})
+              "params": params+ext_params})
         objects.append(entry)
     print(path)
 
@@ -110,17 +123,20 @@ def filter_graph(infile, hashid, outfile):
     json.dump(graph, out, indent=2)
 
 def to_dot(infile, dotfile):
+  def pair_repr(pair):
+    return f"{pair[0]}: {pair[1]}"
+
   with open(infile, "r") as inf:
     objects = json.load(inf)
 
   graph = []
   for obj in objects:
     sep = "\\n"
-    opt_params = f"|{sep.join([str(pair) for pair in obj['params']])}" if obj["params"] else ""
+    opt_params = f"|{sep.join([pair_repr(pair) for pair in obj['params']])}" if obj["params"] else ""
     graph.append(f'_{obj["id"]} [shape=record label=\"{{{obj["name"]}|{obj["id"]}{opt_params}}}\"]')
 
     for link in obj["links"]:
-      opt_params = f"\n{chr(0x0a).join([str(pair) for pair in link['params']])}" if link["params"] else ""
+      opt_params = f"\n{chr(0x0a).join([pair_repr(pair) for pair in link['params']])}" if link["params"] else ""
       graph.append(f'_{obj["id"]} -> _{link["id"]} [label=\"{link["type"]}{opt_params}\"]')
 
   with open(dotfile, "w") as out:
